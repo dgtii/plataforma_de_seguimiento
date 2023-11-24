@@ -1,6 +1,31 @@
 import streamlit as st
+import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import plotly.express as px
+
+st.set_page_config(page_title="Productividad en el Área", page_icon=":snake:", layout="wide")
+
+def generar_grafica(df_selection, selected_name):
+    # Generar la gráfica interactiva con Plotly Express
+    fig = px.bar(
+        df_selection,
+        x=df_selection.index,
+        y=df_selection.columns,
+        title=f"Promedio de columnas para {selected_name}",
+        labels={"value": "Valor promedio", "variable": "Columnas"}
+    )
+    fig.update_xaxes(title_text="")
+
+    # Personalizar diseño de la gráfica
+    fig.update_layout(
+        xaxis=dict(tickangle=-45),
+        barmode='group',
+        margin=dict(l=20, r=20, t=50, b=50),  # Configurar márgenes
+    )
+
+    # Mostrar la gráfica interactiva
+    st.plotly_chart(fig, use_container_width=True)
 
 def main():
     st.title("Cargar y visualizar datos Excel")
@@ -43,15 +68,39 @@ def main():
         # Tercer multiselect para filtrar por el nombre de alguien
         selected_names = st.sidebar.multiselect(f"Selecciona nombres de {data_type}", available_names)
 
-        # Filtrar el DataFrame por los nombres seleccionados
-        if data_type == 'Implantación':
-            df_filtered_by_names = df_filtered[df_filtered['asignado_im'].isin(selected_names)]
-        else:
-            df_filtered_by_names = df_filtered[df_filtered['asignado_qa'].isin(selected_names)]
+        # Verificar si al menos un nombre está seleccionado
+        if not selected_names:
+            st.sidebar.warning("Selecciona al menos un nombre.")
+            return
 
-        # Mostrar los datos filtrados en una tabla
-        st.dataframe(df_filtered_by_names)
+        # Ajustar el tamaño de la figura según la cantidad de nombres seleccionados
+        num_selected_names = len(selected_names)
+
+        # Crear subplots horizontalmente
+        columns = st.columns(num_selected_names)
+
+        # Iterar sobre cada nombre seleccionado
+        for i, selected_name in enumerate(selected_names):
+            with columns[i]:
+                st.subheader(f"Promedio de columnas para {selected_name}")
+
+                # Filtrar el DataFrame por el nombre seleccionado
+                if data_type == 'Implantación':
+                    df_individual = df_filtered[df_filtered['asignado_im'] == selected_name]
+                else:
+                    df_individual = df_filtered[df_filtered['asignado_qa'] == selected_name]
+
+                # Excluir columnas no deseadas y convertir a tipo numérico
+                columns_to_exclude = ['asignado_im', 'proyecto'] if data_type == 'Implantación' else ['asignado_qa', 'proyecto']
+                df_individual_numeric = df_individual.drop(columns=columns_to_exclude)
+                df_individual_numeric = df_individual_numeric.apply(pd.to_numeric, errors='coerce')
+
+                # Calcular el promedio de cada columna
+                column_means_individual = df_individual_numeric.mean()
+
+                # Mostrar la gráfica interactiva con Plotly Express
+                generar_grafica(pd.DataFrame(column_means_individual).transpose(), selected_name)
 
 if __name__ == "__main__":
     main()
-           
+
