@@ -1,195 +1,57 @@
-import pandas as pd  # pip install pandas openpyxl
-import plotly.express as px  # pip install plotly-express
-import streamlit as st  # pip install streamlit
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-from googleapiclient.discovery import build
-from oauth2client.service_account import ServiceAccountCredentials
-# emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
+import streamlit as st
+import pandas as pd
+import os
 
 def main():
-    #st.set_page_config(page_title="Productividad en el Área", page_icon=":snake:", layout="wide")
+    st.title("Cargar y visualizar datos Excel")
 
-    # Obtener datos de la hoja de Google Sheets
-    scope = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-    client = build('sheets', 'v4', credentials=creds)
-    spreadsheet_id = '19ti7YGTgi-cJa7F8bnG3BzwfFSUbkwRarneeYitfWmA'
-    range_name = 'Q2:Z'  # Rango de celdas que deseas obtener
+    # Subir múltiples archivos Excel
+    uploaded_files = st.sidebar.file_uploader("Subir archivos Excel", type=["xlsx", "xls"], accept_multiple_files=True)
 
-    result = client.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=range_name).execute()
-    values = result.get('values', [])
+    if uploaded_files:
+        # Obtener los nombres de los archivos sin extensión
+        file_names = [os.path.splitext(file.name)[0] for file in uploaded_files]
 
-    if not values:
-        st.warning('No se encontraron datos en la hoja de Google Sheets.')
-        st.stop()
+        # Seleccionar archivo con un select box
+        selected_file_name = st.sidebar.selectbox("Selecciona un archivo para visualizar", file_names, key='file_selector')
 
-    df = pd.DataFrame(values, columns=['Recurso','Asistencia','Faltas','Retardos','P_Asistencia', 'Pruebas UAT', 'ASD-F15', 'ASD-F17', 'Capacitación', 'Total'])
+        # Obtener el índice del archivo seleccionado
+        selected_file_index = file_names.index(selected_file_name)
 
-    # Selecciona solo las columnas deseadas
-    columnas_deseadas = ["Recurso", "P_Asistencia", "Pruebas UAT", "ASD-F15", "ASD-F17", "Capacitación", "Total"]
-    df_procesado = df[columnas_deseadas]
-    #st.dataframe(df_procesado)
-    # Lista de columnas numéricas excepto 'Recurso'
-    columnas_numericas = ["P_Asistencia", "Pruebas UAT", "ASD-F15", "ASD-F17", "Capacitación", "Total"]
+        # Cargar el archivo seleccionado
+        df = pd.read_excel(uploaded_files[selected_file_index])
 
-    # Convertir las columnas numéricas a tipo numérico (si es posible)
-    df_procesado[columnas_numericas] = df_procesado[columnas_numericas].apply(pd.to_numeric, errors='coerce')
+        # Segundo select box para elegir entre Implantación y QA
+        data_type = st.sidebar.selectbox("Selecciona el tipo de datos", ['Implantación', 'QA'])
 
-    df = df_procesado.copy()
-    #st.dataframe(df)
-    st.sidebar.header("Filtros:")
-    recurso = st.sidebar.multiselect(
-        "Seleccione personal:",
-        options=df["Recurso"].unique(),
-        default=df["Recurso"].unique()
-    )
-    # Sidebar para seleccionar el tipo de gráfico
-    st.sidebar.header("Tema:")
-    grafico_barras = st.sidebar.checkbox("Indicadores de Productividad", value=True)
-    grafico_tacometro = st.sidebar.checkbox("Avance Total")
-    grafico_dona = st.sidebar.checkbox("Asistencia")
-    #poder cambiar los filtros: nota
-    df_selection = df.query(
-        "Recurso == @recurso"
-    )
-    # diccionario
-    nombres_preferidos = {
-        "Cabrera Gutiérrez, Jesús": "Jesús 😳",
-        "Celaya de la Serna, Blanca del Carmen": "Blanquita 😾",
-        "Cortes Villegas, Ana Paola": "Pao 🤷‍♀️",
-        "Fonseca Gómez, Marycruz": "Mary 😃"
-    }
-    df_selection["Recurso"] = df_selection["Recurso"].replace(nombres_preferidos)
-    if df_selection.empty:
-        st.warning("No se encontraron datos con los filtro seleccionados ):")
-        st.stop() # para que no se rompa la wea
+        if data_type == 'Implantación':
+            # Mostrar todas las columnas excepto las relacionadas con QA
+            selected_columns = [col for col in df.columns if col not in ['asignado_qa', 'entregables_qa', 'plan_pruebas']]
+            df_filtered = df[selected_columns]
+            # Obtener nombres disponibles en asignado_im
+            available_names = df_filtered['asignado_im'].unique()
+        elif data_type == 'QA':
+            # Mostrar solo las columnas relacionadas con QA
+            df_filtered = df[['asignado_qa', 'proyecto', 'plan_pruebas', 'entregables_qa']]
+            # Obtener nombres disponibles en asignado_qa
+            available_names = df_filtered['asignado_qa'].unique()
+        else:
+            # En caso de una opción no válida
+            st.sidebar.error("Selecciona un tipo de datos válido.")
+            return
 
-    st.title("😈 Productividad en el Área")
-    st.markdown("##")
+        # Tercer multiselect para filtrar por el nombre de alguien
+        selected_names = st.sidebar.multiselect(f"Selecciona nombres de {data_type}", available_names)
 
-    average_rating = round(df["Total"].mean(), 1)
-    max_rating = 100  # Puntuación máxima posible
+        # Filtrar el DataFrame por los nombres seleccionados
+        if data_type == 'Implantación':
+            df_filtered_by_names = df_filtered[df_filtered['asignado_im'].isin(selected_names)]
+        else:
+            df_filtered_by_names = df_filtered[df_filtered['asignado_qa'].isin(selected_names)]
 
-    # Calcula el número de estrellas en una escala de 0 a 5
-    num_estrellas = round((average_rating / max_rating) * 5)
-
-    # Limita el número de estrellas a un máximo de 5
-    num_estrellas = min(num_estrellas, 5)
-
-    # Convierte el número de estrellas en el formato de estrella ":star:"
-    star_rating = ":star:" * num_estrellas
-
-    st.subheader("Promedio de productividad:")
-    st.subheader(f"{average_rating}% {star_rating}")
-
-    st.markdown("""---""")
-
-    st.write("### Resultados:")
-    #st.write(df_selection)
-    # Función para generar la gráfica interactiva basada en el filtro seleccionado
-    def generar_grafica(df_selection):
-        # Generar la gráfica interactiva con Plotly Express
-        fig = px.bar(
-            df_selection,
-            x="Recurso",
-            y=["Pruebas UAT", "ASD-F15", "ASD-F17", "Capacitación"],
-            title="Indicadores de productividad",
-            labels={"value": "Valor del Indicador de Productividad", "variable": "Indicador"}
-        )
-        fig.update_xaxes(title_text="")
-
-        # Personalizar diseño de la gráfica
-        fig.update_layout(
-            xaxis=dict(tickangle=-45),
-            barmode='group',
-            margin=dict(l=20, r=20, t=50, b=50)  # Configurar márgenes
-        )
-        
-        # Mostrar la gráfica interactiva
-        st.plotly_chart(fig, use_container_width=True)  # Ajustar al ancho del contenedor
-
-    # Llama a la función para generar la gráfica basada en los recursos seleccionados
-    #generar_grafica(df_selection)
-
-    # Función para generar gráficos tipo tacómetro para el progreso de cada empleado
-    def generar_graficos_tacometro(df_selection):
-        figuras = []
-        for _, row in df_selection.iterrows():
-            total = row["Total"]  # Obtener el valor de la columna Total para el empleado actual
-            
-            # Calcular el progreso (respetando el máximo de 100)
-            progreso = min(total, 100)
-            
-            # Crear el gráfico tipo tacómetro para el progreso del empleado
-            fig = go.Figure()
-
-            # Configurar el gráfico tipo tacómetro
-            fig.add_trace(go.Indicator(
-                mode="gauge+number",
-                value=progreso,
-                domain={"x": [0, 1], "y": [0, 1]},
-                title={"text": f"Progreso para: {row['Recurso']}"},
-                gauge={
-                    "axis": {"range": [0, 100]},
-                    "bar": {"color": "green"},
-                    "steps": [
-                        {"range": [0, 100], "color": "lightgray"}
-                    ],
-                }
-            ))
-
-            # Configurar el diseño del gráfico
-            fig.update_layout(height=230, margin=dict(l=20, r=20, t=50, b=50))
-            
-            # Agregar la figura del gráfico a la lista
-            figuras.append(fig)
-
-        return figuras
-
-    # Llama a la función para generar gráficos tipo tacómetro para los empleados seleccionados
-    #figuras_tacometro = generar_graficos_tacometro(df_selection)
-
-    # Mostrar los gráficos tipo tacómetro en una fila
-
-    # Función para generar gráficos de barras para la asistencia de cada empleado
-    # Función para generar gráficos de dona para la asistencia de cada empleado
-    def generar_graficos_dona(df_selection):
-        figuras = []
-        for _, row in df_selection.iterrows():
-            asistencia = row["P_Asistencia"]
-            fig_dona = px.pie(
-                values=[asistencia, 21 - asistencia],
-                names=["Asistencia", "Restante"],
-                title=f'Asistencia de {row["Recurso"]}',
-                hole=0.6,
-                labels={"value": "P_Asistencia"},
-            )
-            figuras.append(fig_dona)
-
-        return figuras
-
-    # Llama a la función para generar gráficos de dona para la asistencia de los empleados seleccionados
-    #figuras_dona = generar_graficos_dona(df_selection)
-
-    # Mostrar los gráficos de dona en una fila horizontal
-
-    # Lógica para mostrar los gráficos según las selecciones
-    if grafico_barras:
-        generar_grafica(df_selection)
-
-    if grafico_tacometro:
-        figuras_tacometro = generar_graficos_tacometro(df_selection)
-        columnas = st.columns(len(figuras_tacometro))
-        for i, figura in enumerate(figuras_tacometro):
-            columnas[i].plotly_chart(figura, use_container_width=True)
-
-    if grafico_dona:
-        figuras_dona = generar_graficos_dona(df_selection)
-        columnas = st.columns(len(figuras_dona))
-        for i, figura in enumerate(figuras_dona):
-            columnas[i].plotly_chart(figura, use_container_width=True)
+        # Mostrar los datos filtrados en una tabla
+        st.dataframe(df_filtered_by_names)
 
 if __name__ == "__main__":
-    main()            
+    main()
+           
