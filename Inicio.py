@@ -12,8 +12,8 @@ def generar_grafica(df_selection, selected_name):
         df_selection,
         x=df_selection.index,
         y=df_selection.columns,
-        title=f"Promedio de columnas para {selected_name}",
-        labels={"value": "Valor promedio", "variable": "Columnas"}
+        #title=f"Promedio de columnas para {selected_name}",
+        labels={"value": "Progreso", "variable": "Indicador"}
     )
     fig.update_xaxes(title_text="")
 
@@ -28,7 +28,7 @@ def generar_grafica(df_selection, selected_name):
     st.plotly_chart(fig, use_container_width=True)
 
 def main():
-    st.title("Cargar y visualizar datos Excel")
+    st.title("Cargar plantillas")
 
     # Subir múltiples archivos Excel
     uploaded_files = st.sidebar.file_uploader("Subir archivos Excel", type=["xlsx", "xls"], accept_multiple_files=True)
@@ -47,7 +47,7 @@ def main():
         df = pd.read_excel(uploaded_files[selected_file_index])
 
         # Segundo select box para elegir entre Implantación y QA
-        data_type = st.sidebar.selectbox("Selecciona el tipo de datos", ['Implantación', 'QA'])
+        data_type = st.sidebar.selectbox("Selecciona un área", ['Implantación', 'QA'])
 
         if data_type == 'Implantación':
             # Mostrar todas las columnas excepto las relacionadas con QA
@@ -62,15 +62,15 @@ def main():
             available_names = df_filtered['asignado_qa'].unique()
         else:
             # En caso de una opción no válida
-            st.sidebar.error("Selecciona un tipo de datos válido.")
+            st.sidebar.error("Selecciona un área.")
             return
 
         # Tercer multiselect para filtrar por el nombre de alguien
-        selected_names = st.sidebar.multiselect(f"Selecciona nombres de {data_type}", available_names)
+        selected_names = st.sidebar.multiselect(f"Selecciona a una persona de {data_type}", available_names)
 
         # Verificar si al menos un nombre está seleccionado
         if not selected_names:
-            st.sidebar.warning("Selecciona al menos un nombre.")
+            st.sidebar.warning("Selecciona al menos a una persona.")
             return
 
         # Ajustar el tamaño de la figura según la cantidad de nombres seleccionados
@@ -82,7 +82,7 @@ def main():
         # Iterar sobre cada nombre seleccionado
         for i, selected_name in enumerate(selected_names):
             with columns[i]:
-                st.subheader(f"Promedio de columnas para {selected_name}")
+                st.subheader(f"Progreso de {selected_name}")
 
                 # Filtrar el DataFrame por el nombre seleccionado
                 if data_type == 'Implantación':
