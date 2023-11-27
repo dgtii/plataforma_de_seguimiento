@@ -1,5 +1,4 @@
 import streamlit as st
-import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import plotly.express as px
@@ -50,8 +49,13 @@ def main():
         data_type = st.sidebar.selectbox("Selecciona un área", ['Implantación', 'QA'])
 
         if data_type == 'Implantación':
-            # Mostrar todas las columnas excepto las relacionadas con QA
-            selected_columns = [col for col in df.columns if col not in ['asignado_qa', 'entregables_qa', 'plan_pruebas']]
+            # Rellenar valores NaN con cero
+            df[['asf_f15_1', 'asf_f15_2', 'asf_f17_1', 'asf_f17_2']] = df[['asf_f15_1', 'asf_f15_2', 'asf_f17_1', 'asf_f17_2']].fillna(0)
+            # Sumar y promediar las columnas específicas
+            df['asf_f15'] = df[['asf_f15_1', 'asf_f15_2']].sum(axis=1) / 2
+            df['asf_f17'] = df[['asf_f17_1', 'asf_f17_2']].sum(axis=1) / 2
+            # Mostrar todas las columnas excepto las relacionadas con QA y las columnas específicas que ya sumamos y promediamos
+            selected_columns = [col for col in df.columns if col not in ['asignado_qa', 'entregables_qa', 'plan_pruebas', 'asf_f15_1', 'asf_f15_2', 'asf_f17_1', 'asf_f17_2']]
             df_filtered = df[selected_columns]
             # Obtener nombres disponibles en asignado_im
             available_names = df_filtered['asignado_im'].unique()
