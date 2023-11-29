@@ -25,8 +25,6 @@ def generar_grafica_barras(df_selection, selected_name):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-
-
 def generar_tacometro(productividad_value, selected_name):
     # Tacómetro con el valor de productividad
     fig = go.Figure(go.Indicator(
@@ -85,7 +83,7 @@ def main():
             # Mostrar solo las columnas relacionadas con QA
             df_filtered = df[['asignado_qa', 'proyecto', 'plan_pruebas', 'entregables_qa']]
             # Calcular la nueva columna 'productividad' para QA
-            df_filtered['productividad'] = (df_filtered['entregables_qa'] + df_filtered['plan_pruebas']) / 2
+            df_filtered['productividad'] = df_filtered['plan_pruebas'].where(df_filtered['entregables_qa'].isna(), 100)
             # Obtener nombres disponibles en asignado_qa
             available_names = df_filtered['asignado_qa'].unique()
         else:
