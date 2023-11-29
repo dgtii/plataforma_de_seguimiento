@@ -2,28 +2,48 @@ import streamlit as st
 import pandas as pd
 import os
 import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="Productividad en el Área", page_icon=":snake:", layout="wide")
 
-def generar_grafica(df_selection, selected_name):
-    # Generar la gráfica interactiva con Plotly Express
+def generar_grafica_barras(df_selection, selected_name):
+    # Eliminar la columna de productividad si existe
+    df_selection = df_selection.drop(columns=['productividad'], errors='ignore')
+
+    # Gráfica de barras para el progreso
     fig = px.bar(
         df_selection,
         x=df_selection.index,
         y=df_selection.columns,
-        #title=f"Promedio de columnas para {selected_name}",
         labels={"value": "Progreso", "variable": "Indicador"}
     )
     fig.update_xaxes(title_text="")
-
-    # Personalizar diseño de la gráfica
     fig.update_layout(
         xaxis=dict(tickangle=-45),
         barmode='group',
-        margin=dict(l=20, r=20, t=50, b=50),  # Configurar márgenes
+        margin=dict(l=20, r=20, t=50, b=50),
     )
+    st.plotly_chart(fig, use_container_width=True)
 
-    # Mostrar la gráfica interactiva
+
+
+def generar_tacometro(productividad_value, selected_name):
+    # Tacómetro con el valor de productividad
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=productividad_value,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={'text': f"Productividad de {selected_name}"},
+        gauge={'axis': {'range': [None, 100]},
+               'bar': {'color': "darkblue"},
+               'steps': [
+                   {'range': [0, 50], 'color': "lightblue"},
+                   {'range': [50, 100], 'color': "lightcoral"}],
+               'threshold': {
+                   'line': {'color': "red", 'width': 4},
+                   'thickness': 0.75, 'value': 70}
+               }
+    ))
     st.plotly_chart(fig, use_container_width=True)
 
 def main():
@@ -54,7 +74,9 @@ def main():
             # Sumar y promediar las columnas específicas
             df['asf_f15'] = df[['asf_f15_1', 'asf_f15_2']].sum(axis=1) / 2
             df['asf_f17'] = df[['asf_f17_1', 'asf_f17_2']].sum(axis=1) / 2
-            # Mostrar todas las columnas excepto las relacionadas con QA y las columnas específicas que ya sumamos y promediamos
+            # Calcular la nueva columna 'productividad'
+            df['productividad'] = (df['asf_f15'] + df['asf_f17']) / 2 * 0.5 + df['despliegues'] * 0.5
+            # Mostrar solo las columnas específicas para Implantación
             selected_columns = [col for col in df.columns if col not in ['asignado_qa', 'entregables_qa', 'plan_pruebas', 'asf_f15_1', 'asf_f15_2', 'asf_f17_1', 'asf_f17_2']]
             df_filtered = df[selected_columns]
             # Obtener nombres disponibles en asignado_im
@@ -62,6 +84,8 @@ def main():
         elif data_type == 'QA':
             # Mostrar solo las columnas relacionadas con QA
             df_filtered = df[['asignado_qa', 'proyecto', 'plan_pruebas', 'entregables_qa']]
+            # Calcular la nueva columna 'productividad' para QA
+            df_filtered['productividad'] = (df_filtered['entregables_qa'] + df_filtered['plan_pruebas']) / 2
             # Obtener nombres disponibles en asignado_qa
             available_names = df_filtered['asignado_qa'].unique()
         else:
@@ -102,8 +126,14 @@ def main():
                 # Calcular el promedio de cada columna
                 column_means_individual = df_individual_numeric.mean()
 
-                # Mostrar la gráfica interactiva con Plotly Express
-                generar_grafica(pd.DataFrame(column_means_individual).transpose(), selected_name)
+                # Obtener el valor de productividad
+                productividad_value = column_means_individual.get('productividad', 0)
+
+                # Mostrar la gráfica de barras
+                generar_grafica_barras(pd.DataFrame(column_means_individual).transpose(), selected_name)
+
+                # Mostrar el tacómetro
+                generar_tacometro(productividad_value, selected_name)
 
 if __name__ == "__main__":
     main()
