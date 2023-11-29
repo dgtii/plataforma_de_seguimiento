@@ -35,8 +35,8 @@ def generar_tacometro(productividad_value, selected_name):
         gauge={'axis': {'range': [None, 100]},
                'bar': {'color': "darkblue"},
                'steps': [
-                   {'range': [0, 50], 'color': "lightblue"},
-                   {'range': [50, 100], 'color': "lightcoral"}],
+                   {'range': [0, 50], 'color': "lightcoral"},
+                   {'range': [50, 100], 'color': "lightblue"}],
                'threshold': {
                    'line': {'color': "red", 'width': 4},
                    'thickness': 0.75, 'value': 70}
@@ -102,12 +102,20 @@ def main():
         # Ajustar el tamaño de la figura según la cantidad de nombres seleccionados
         num_selected_names = len(selected_names)
 
-        # Crear subplots horizontalmente
-        columns = st.columns(num_selected_names)
+        # Definir el número máximo de gráficas por fila
+        max_plots_per_row = 4
+
+        # Contador para controlar la organización de las gráficas
+        plot_counter = 0
 
         # Iterar sobre cada nombre seleccionado
         for i, selected_name in enumerate(selected_names):
-            with columns[i]:
+            # Verificar si se debe comenzar una nueva fila
+            if plot_counter % max_plots_per_row == 0:
+                columns = st.columns(min(max_plots_per_row, num_selected_names - plot_counter))
+                plot_counter = 0
+
+            with columns[plot_counter]:
                 st.subheader(f"Progreso de {selected_name}")
 
                 # Filtrar el DataFrame por el nombre seleccionado
@@ -133,6 +141,10 @@ def main():
                 # Mostrar el tacómetro
                 generar_tacometro(productividad_value, selected_name)
 
+            # Incrementar el contador de gráficas
+            plot_counter += 1
+
 if __name__ == "__main__":
     main()
+
 
